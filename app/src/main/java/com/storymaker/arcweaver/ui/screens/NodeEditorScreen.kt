@@ -1,94 +1,260 @@
 package com.storymaker.arcweaver.ui.screens
 
-
-import android.widget.Toast
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.storymaker.arcweaver.data.entity.StoryNodeEntity
+import com.storymaker.arcweaver.parseRichText
+import com.storymaker.arcweaver.viewmodel.ChoiceDraft
 import com.storymaker.arcweaver.viewmodel.NodeViewModel
-import com.storymaker.arcweaver.model.Choice
-import com.storymaker.arcweaver.model.StoryNode
 
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NodeEditorScreen(viewModel: NodeViewModel = viewModel()) {
-    val context = LocalContext.current
+fun NodeEditorScreen(
+    viewModel: NodeViewModel,
+    nodeIdToEdit: Int?, // Menerima ID jika mode Edit
+    onNavigateBack: () -> Unit
+) {
+    val existingNodes by viewModel.allNodes.collectAsState()
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp)
-    ) {
-        Text("ArcWeaver Editor", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
+    var characterName by remember { mutableStateOf("") }
+    var dialogueText by remember { mutableStateOf("") }
+    var choices by remember { mutableStateOf(listOf(ChoiceDraft())) }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
-        // Form Karakter (Ambil data dari ViewModel)
-        OutlinedTextField(
-            value = viewModel.characterName.value,
-            onValueChange = { viewModel.characterName.value = it },
-            label = { Text("Nama Karakter") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Form Dialog
-        OutlinedTextField(
-            value = viewModel.dialogueText.value,
-            onValueChange = { viewModel.dialogueText.value = it },
-            label = { Text("Isi Dialog/Narasi") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 3
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Divider()
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Form Tambah Cabang
-        Row(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = viewModel.newChoiceInput.value,
-                onValueChange = { viewModel.newChoiceInput.value = it },
-                label = { Text("Ketik pilihan baru...") },
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = { viewModel.addChoice() }, // Panggil fungsi di ViewModel
-                modifier = Modifier.padding(top = 8.dp)
-            ) {
-                Text("Tambah")
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Daftar Pilihan (Observasi List dari ViewModel)
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(viewModel.choicesList) { choice ->
-                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Text(
-                        text = "Cabang: ${choice.choiceText}",
-                        modifier = Modifier.padding(16.dp)
-                    )
+    // --- FITUR LOAD DATA (AUTO-FILL) UNTUK MODE EDIT ---
+    LaunchedEffect(nodeIdToEdit) {
+        if (nodeIdToEdit != null) {
+            val data = viewModel.loadNodeForEdit(nodeIdToEdit)
+            if (data != null) {
+                characterName = data.first.characterName
+                dialogueText = data.first.dialogueText
+                selectedImageUri = data.first.characterImageUri?.let { Uri.parse(it) }
+                if (data.second.isNotEmpty()) {
+                    choices = data.second
+                } else {
+                    choices = emptyList() // Jika end node
                 }
             }
         }
+    }
 
-        // Tombol Simpan
-        Button(
-            onClick = {
-                val savedNode = viewModel.saveNode()
-                Toast.makeText(context, "Tersimpan! ${savedNode.getBranchCount()} Cabang dibuat.", Toast.LENGTH_SHORT).show()
-                viewModel.clearForm() // Bersihkan layar
-            },
-            modifier = Modifier.fillMaxWidth()
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) selectedImageUri = uri
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                // Ganti judul dinamis sesuai mode
+                title = { Text(if (nodeIdToEdit == null) "Create Story Node" else "Edit Story Node") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Simpan Node Cerita")
+
+            // --- PHOTO PICKER ---
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable {
+                            photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (selectedImageUri != null) {
+                        AsyncImage(
+                            model = selectedImageUri,
+                            contentDescription = "Avatar",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(Icons.Default.Person, contentDescription = "Add Photo", modifier = Modifier.size(40.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text("Character Sprite", style = MaterialTheme.typography.titleMedium)
+                    if (selectedImageUri != null) {
+                        TextButton(onClick = { selectedImageUri = null }, contentPadding = PaddingValues(0.dp)) {
+                            Text("Remove Photo", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+
+            // --- INPUT DASAR ---
+            OutlinedTextField(
+                value = characterName,
+                onValueChange = { characterName = it },
+                label = { Text("Character Name") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = dialogueText,
+                onValueChange = { dialogueText = it },
+                label = { Text("Dialogue (Use **bold** or *italic*)") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3
+            )
+
+            // --- LIVE PREVIEW TEXT FORMATTING ---
+            if (dialogueText.isNotBlank()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Live Preview:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        // Memanggil fungsi parseRichText kita!
+                        Text(
+                            text = parseRichText(dialogueText),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+
+            Text("Choices (Branching)", style = MaterialTheme.typography.titleMedium)
+
+            // --- DAFTAR PILIHAN ---
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                itemsIndexed(choices) { index, choiceDraft ->
+                    var showAdvanced by remember { mutableStateOf(false) }
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedTextField(
+                                    value = choiceDraft.text,
+                                    onValueChange = { newValue ->
+                                        val newChoices = choices.toMutableList()
+                                        newChoices[index] = choiceDraft.copy(text = newValue)
+                                        choices = newChoices
+                                    },
+                                    label = { Text("Choice Text") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = { showAdvanced = !showAdvanced }) { Icon(Icons.Default.Build, "Advanced") }
+                                IconButton(onClick = {
+                                    val newChoices = choices.toMutableList()
+                                    newChoices.removeAt(index)
+                                    choices = newChoices
+                                }) { Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error) }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            NodeDropdownSelector(
+                                nodes = existingNodes.filter { it.nodeId != nodeIdToEdit }, // Jangan bisa melink ke diri sendiri
+                                selectedNodeId = choiceDraft.targetNodeId,
+                                onNodeSelected = { targetId ->
+                                    val newChoices = choices.toMutableList()
+                                    newChoices[index] = choiceDraft.copy(targetNodeId = targetId)
+                                    choices = newChoices
+                                }
+                            )
+
+                            if (showAdvanced) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = choiceDraft.condition,
+                                    onValueChange = { newValue ->
+                                        val newChoices = choices.toMutableList()
+                                        newChoices[index] = choiceDraft.copy(condition = newValue)
+                                        choices = newChoices
+                                    },
+                                    label = { Text("Required Logic (e.g. hasKey == true)") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                }
+                item {
+                    TextButton(onClick = { choices = choices + ChoiceDraft() }) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add Choice")
+                    }
+                }
+            }
+
+            // --- TOMBOL SAVE ---
+            Button(
+                onClick = {
+                    if (characterName.isNotBlank() && dialogueText.isNotBlank()) {
+                        val validChoices = choices.filter { it.text.isNotBlank() }
+                        // Panggil save dengan membawa ID (jika ada)
+                        viewModel.saveStoryNode(nodeIdToEdit, characterName, dialogueText, selectedImageUri?.toString(), validChoices)
+                        onNavigateBack()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (nodeIdToEdit == null) "Save New Node" else "Update Node")
+            }
+        }
+    }
+}
+
+// Dropdown Selector (Tetap sama seperti sebelumnya)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NodeDropdownSelector(nodes: List<StoryNodeEntity>, selectedNodeId: Int?, onNodeSelected: (Int?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedNodeText = if (selectedNodeId == null) "Unlinked (End of Story)" else nodes.find { it.nodeId == selectedNodeId }?.let { "Node #${it.nodeId} (${it.characterName})" } ?: "Unknown Node"
+
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = selectedNodeText, onValueChange = {}, readOnly = true,
+            label = { Text("Connect to (Target Node)") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            modifier = Modifier.menuAnchor().fillMaxWidth()
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(text = { Text("Unlinked (End of Story)", fontWeight = FontWeight.Bold) }, onClick = { onNodeSelected(null); expanded = false })
+            Divider()
+            nodes.forEach { node ->
+                DropdownMenuItem(text = { Text("Node #${node.nodeId}: ${node.dialogueText.take(20)}...") }, onClick = { onNodeSelected(node.nodeId); expanded = false })
+            }
         }
     }
 }

@@ -1,53 +1,95 @@
 package com.storymaker.arcweaver.viewmodel
 
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
-import com.storymaker.arcweaver.model.Choice
-import com.storymaker.arcweaver.model.StoryNode
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.storymaker.arcweaver.data.entity.ChoiceEntity
+import com.storymaker.arcweaver.data.entity.StoryNodeEntity
+import com.storymaker.arcweaver.data.repository.StoryRepository
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
-class NodeViewModel : ViewModel() {
-    // State untuk Form Input
-    var characterName = mutableStateOf("")
-    var dialogueText = mutableStateOf("")
-    var newChoiceInput = mutableStateOf("")
+// 1. Data class untuk menampung input pilihan sementara dari UI (Editor)
+data class ChoiceDraft(
+    val text: String = "",
+    val targetNodeId: Int? = null,
+    val condition: String = "" // Untuk fitur Advanced Mode (Logika Variabel)
+)
 
-    // State untuk Daftar Pilihan
-    var choicesList = mutableStateListOf<Choice>()
-    private var choiceIdCounter = 1
+class NodeViewModel(private val repository: StoryRepository) : ViewModel() {
 
-    // Fungsi OOP untuk menambah pilihan
-    fun addChoice() {
-        if (newChoiceInput.value.isNotBlank()) {
-            choicesList.add(Choice(id = choiceIdCounter, choiceText = newChoiceInput.value))
-            choiceIdCounter++
-            newChoiceInput.value = "" // Kosongkan input
+    // Membaca aliran data node dari database secara reaktif ke UI
+    val allNodes: StateFlow<List<StoryNodeEntity>> = repository.allNodes
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // 2. Fungsi menyimpan ATAU mengedit Node
+    fun saveStoryNode(
+        nodeId: Int? = null, // Jika null = buat baru, jika ada angka = mode edit
+        characterName: String,
+        dialogue: String,
+        imageUri: String?,
+        choices: List<ChoiceDraft>
+    ) {
+        viewModelScope.launch {
+            // Bungkus data utama menjadi StoryNodeEntity (Gunakan nama nodeToSave)
+            val nodeToSave = StoryNodeEntity(
+                nodeId = nodeId ?: 0,
+                characterName = characterName,
+                dialogueText = dialogue,
+                characterImageUri = imageUri
+            )
+
+            // Petakan List<ChoiceDraft> menjadi List<ChoiceEntity>
+            val choiceEntities = choices.map { draft ->
+                ChoiceEntity(
+                    parentNodeId = nodeId ?: 0,
+                    choiceText = draft.text,
+                    targetNodeId = draft.targetNodeId,
+                    requiredCondition = draft.condition.ifBlank { null }
+                )
+            }
+
+            // Cek apakah ini Node Baru atau Edit Node Lama
+            if (nodeId == null) {
+                // Mode Buat Baru
+                repository.insertNodeWithChoices(nodeToSave, choiceEntities)
+            } else {
+                // Mode Edit
+                repository.updateNodeWithChoices(nodeToSave, choiceEntities)
+            }
         }
     }
 
-    // Fungsi untuk membungkus data menjadi Objek saat disimpan
-    fun saveNode(): StoryNode {
-        val finalNode = StoryNode(
-            nodeId = 1, // Nanti ini bisa di-generate otomatis oleh Room DB
-            characterName = characterName.value,
-            dialogueText = dialogueText.value
-        )
-
-        choicesList.forEach { choice ->
-            finalNode.addChoice(choice)
+    // 3. Fungsi menghapus Story Node
+    fun deleteNode(node: StoryNodeEntity) {
+        viewModelScope.launch {
+            repository.deleteNode(node)
         }
-
-        // Di sini nantinya Anda memanggil Room Database (Dao) untuk insert ke SQLite
-        // repository.insertNode(finalNode)
-
-        return finalNode
     }
 
-    // Fungsi untuk mereset form setelah simpan
-    fun clearForm() {
-        characterName.value = ""
-        dialogueText.value = ""
-        choicesList.clear()
-        choiceIdCounter = 1
+    // 4. Fungsi mengambil data saat layar edit dibuka
+    suspend fun loadNodeForEdit(nodeId: Int): Pair<StoryNodeEntity, List<ChoiceDraft>>? {
+        val node = repository.getNodeById(nodeId) ?: return null
+        val choices = repository.getChoicesByNodeId(nodeId).map {
+            ChoiceDraft(
+                text = it.choiceText,
+                targetNodeId = it.targetNodeId,
+                condition = it.requiredCondition ?: ""
+            )
+        }
+        return Pair(node, choices)
+    }
+}
+
+// 5. Factory
+class NodeViewModelFactory(private val repository: StoryRepository) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(NodeViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return NodeViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
