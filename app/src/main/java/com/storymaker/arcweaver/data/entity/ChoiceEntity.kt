@@ -9,5 +9,7 @@ data class ChoiceEntity(
     val parentNodeId: Int,
     val choiceText: String,
     val targetNodeId: Int? = null,
-    val requiredCondition: String? = null
+    val requiredCondition: String? = null,
+    val condition: String? = null,
+    val effect: String? = null
 )

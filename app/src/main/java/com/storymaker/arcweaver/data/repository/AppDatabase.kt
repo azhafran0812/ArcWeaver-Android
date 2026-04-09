@@ -8,7 +8,7 @@ import com.storymaker.arcweaver.data.dao.StoryDao
 import com.storymaker.arcweaver.data.entity.ChoiceEntity
 import com.storymaker.arcweaver.data.entity.StoryNodeEntity
 
-@Database(entities = [StoryNodeEntity::class, ChoiceEntity::class], version = 1, exportSchema = false)
+@Database(entities = [StoryNodeEntity::class, ChoiceEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun storyDao(): StoryDao
 
@@ -22,7 +22,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "arcweaver_database"
-                ).build()
+                ).fallbackToDestructiveMigration().build()
                 INSTANCE = instance
                 instance
             }

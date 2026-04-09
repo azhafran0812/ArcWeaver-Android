@@ -1,6 +1,7 @@
 package com.storymaker.arcweaver
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -11,11 +12,16 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.storymaker.arcweaver.data.repository.AppDatabase
 import com.storymaker.arcweaver.data.repository.StoryRepository
+import com.storymaker.arcweaver.domain.engine.PlaytestEngine
+import com.storymaker.arcweaver.domain.evaluator.ConditionalEvaluator
+import com.storymaker.arcweaver.domain.parser.VariableParser
+import com.storymaker.arcweaver.domain.repository.PlaytestRepository
 import com.storymaker.arcweaver.ui.screens.NodeEditorScreen
 import com.storymaker.arcweaver.ui.screens.NodeListScreen
 import com.storymaker.arcweaver.ui.theme.ArcWeaverTheme
 import com.storymaker.arcweaver.viewmodel.NodeViewModel
 import com.storymaker.arcweaver.viewmodel.NodeViewModelFactory
+import com.storymaker.arcweaver.viewmodel.PlaytestViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,6 +30,8 @@ class MainActivity : ComponentActivity() {
         val database = AppDatabase.getDatabase(this)
         val repository = StoryRepository(database.storyDao())
         val factory = NodeViewModelFactory(repository)
+        val playtestRepository = PlaytestRepository(repository)
+        val playtestFactory = PlaytestViewModelFactory(playtestRepository)
 
         setContent {
             ArcWeaverTheme {
@@ -45,7 +53,8 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // Rute Editor diperbarui untuk menerima argumen nodeId opsional
+
+                    // Rute Editor untuk menerima argumen nodeId
                     composable(
                         route = "editor?nodeId={nodeId}",
                         arguments = listOf(navArgument("nodeId") {
@@ -63,6 +72,9 @@ class MainActivity : ComponentActivity() {
                             onNavigateBack = { navController.popBackStack() }
                         )
                     }
+
+
+
                 }
             }
         }

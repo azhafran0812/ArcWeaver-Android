@@ -5,66 +5,92 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.storymaker.arcweaver.data.entity.ChoiceEntity
 import com.storymaker.arcweaver.data.entity.StoryNodeEntity
-import com.storymaker.arcweaver.data.repository.StoryRepository
+import com.storymaker.arcweaver.domain.engine.PlaytestEngine
+import com.storymaker.arcweaver.domain.repository.PlaytestRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class PlaytestViewModel(private val repository: StoryRepository) : ViewModel() {
+class PlaytestViewModel(
+    private val repository: PlaytestRepository,
+    private val engine: PlaytestEngine = PlaytestEngine()
+) : ViewModel() {
 
-    // Menyimpan state adegan saat ini
+    // 🔹 State Node sekarang
     private val _currentNode = MutableStateFlow<StoryNodeEntity?>(null)
     val currentNode: StateFlow<StoryNodeEntity?> = _currentNode.asStateFlow()
 
-    // Menyimpan daftar pilihan untuk adegan tersebut
+    // 🔹 State pilihan
     private val _currentChoices = MutableStateFlow<List<ChoiceEntity>>(emptyList())
     val currentChoices: StateFlow<List<ChoiceEntity>> = _currentChoices.asStateFlow()
 
-    // Menyimpan status apakah game sudah tamat
+    // 🔹 State game over
     private val _isGameOver = MutableStateFlow(false)
     val isGameOver: StateFlow<Boolean> = _isGameOver.asStateFlow()
 
-    // Fungsi memulai game
+    // 🔹 State variables JSON
+    private var currentVariablesJson: String? = "{}"
+
+
     fun startGame() {
         viewModelScope.launch {
             _isGameOver.value = false
-            val initialNode = repository.getFirstNode()
+            currentVariablesJson = "{}"
 
-            if (initialNode != null) {
-                _currentNode.value = initialNode
-                _currentChoices.value = repository.getChoicesByNodeId(initialNode.nodeId)
+            val startNode = repository.getStartNode()
+
+            if (startNode != null) {
+                _currentNode.value = startNode
+                _currentChoices.value = repository.getChoices(startNode.nodeId)
             } else {
-                _isGameOver.value = true // Tidak ada cerita di database
+                _isGameOver.value = true
             }
         }
     }
 
-    // Fungsi memproses pilihan pemain
+
     fun makeChoice(choice: ChoiceEntity) {
         viewModelScope.launch {
-            val targetId = choice.targetNodeId
-            if (targetId != null) {
-                val nextNode = repository.getNodeById(targetId)
+
+            val result = engine.processChoice(
+                currentVariablesJson = currentVariablesJson,
+                requiredCondition = choice.condition,
+                targetNodeId = choice.targetNodeId ?: -1
+            )
+
+            if (!result.isSuccess) {
+                //gagal
+                return@launch
+            }
+
+            val nextId = result.nextNodeId
+
+            if (nextId != null && nextId != -1) {
+                val nextNode = repository.getNodeById(nextId)
+
                 if (nextNode != null) {
                     _currentNode.value = nextNode
-                    _currentChoices.value = repository.getChoicesByNodeId(nextNode.nodeId)
+                    _currentChoices.value = repository.getChoices(nextId)
+                    currentVariablesJson = result.updatedVariablesJson
                 } else {
-                    _isGameOver.value = true // Target node hilang
+                    _isGameOver.value = true
                 }
             } else {
-                _isGameOver.value = true // Pilihan tidak disambungkan (End)
+                _isGameOver.value = true
             }
         }
     }
 
-    // Fungsi untuk mengakhiri game
     fun endGame() {
         _isGameOver.value = true
     }
 }
 
-class PlaytestViewModelFactory(private val repository: StoryRepository) : ViewModelProvider.Factory {
+class PlaytestViewModelFactory(
+    private val repository: PlaytestRepository
+) : ViewModelProvider.Factory {
+
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PlaytestViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
