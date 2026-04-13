@@ -33,8 +33,9 @@ import com.storymaker.arcweaver.viewmodel.NodeViewModel
 @Composable
 fun NodeEditorScreen(
     viewModel: NodeViewModel,
-    nodeIdToEdit: Int?, // Menerima ID jika mode Edit
-    onNavigateBack: () -> Unit
+    nodeIdToEdit: Int?,
+    onNavigateBack: () -> Unit,
+    onPlaytest: () -> Unit
 ) {
     val existingNodes by viewModel.allNodes.collectAsState()
 
@@ -214,6 +215,14 @@ fun NodeEditorScreen(
                         Text("Add Choice")
                     }
                 }
+            }
+
+//            tombol playtest
+            Button(
+                onClick = { onPlaytest() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("▶ Playtest Story")
             }
 
             // --- TOMBOL SAVE ---

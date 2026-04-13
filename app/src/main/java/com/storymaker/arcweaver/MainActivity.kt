@@ -18,9 +18,11 @@ import com.storymaker.arcweaver.domain.parser.VariableParser
 import com.storymaker.arcweaver.domain.repository.PlaytestRepository
 import com.storymaker.arcweaver.ui.screens.NodeEditorScreen
 import com.storymaker.arcweaver.ui.screens.NodeListScreen
+import com.storymaker.arcweaver.ui.screens.PlaytestScreen
 import com.storymaker.arcweaver.ui.theme.ArcWeaverTheme
 import com.storymaker.arcweaver.viewmodel.NodeViewModel
 import com.storymaker.arcweaver.viewmodel.NodeViewModelFactory
+import com.storymaker.arcweaver.viewmodel.PlaytestViewModel
 import com.storymaker.arcweaver.viewmodel.PlaytestViewModelFactory
 
 class MainActivity : ComponentActivity() {
@@ -68,13 +70,22 @@ class MainActivity : ComponentActivity() {
 
                         NodeEditorScreen(
                             viewModel = nodeViewModel,
-                            nodeIdToEdit = nodeId, // Kirim ID ke layar editor
-                            onNavigateBack = { navController.popBackStack() }
+                            nodeIdToEdit = nodeId,
+                            onNavigateBack = { navController.popBackStack() },
+                            onPlaytest = {
+                                navController.navigate("playtest")
+                            }
                         )
                     }
 
+                    composable("playtest") {
+                        val playtestViewModel: PlaytestViewModel = viewModel(factory = playtestFactory)
 
-
+                        PlaytestScreen(
+                            viewModel = playtestViewModel,
+                            onExit = { navController.popBackStack() }
+                        )
+                    }
                 }
             }
         }
