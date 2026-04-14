@@ -4,13 +4,38 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.storymaker.arcweaver.data.dao.ProjectDao
 import com.storymaker.arcweaver.data.dao.StoryDao
 import com.storymaker.arcweaver.data.entity.ChoiceEntity
+import com.storymaker.arcweaver.data.entity.ProjectEntity
 import com.storymaker.arcweaver.data.entity.StoryNodeEntity
+import com.storymaker.arcweaver.data.dao.PlaytestDao
+import com.storymaker.arcweaver.data.dao.VariableDao
+import com.storymaker.arcweaver.data.entity.*
+import com.storymaker.arcweaver.data.entity.PlayerStateEntity
+import com.storymaker.arcweaver.data.entity.SaveStateEntity
 
-@Database(entities = [StoryNodeEntity::class, ChoiceEntity::class], version = 2, exportSchema = false)
+@Database(
+    entities = [
+        ProjectEntity::class,
+        StoryNodeEntity::class,
+        ChoiceEntity::class,
+        SaveStateEntity::class,
+        PlayerStateEntity::class,
+        VariableEntity::class
+    ],
+    version = 5,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
+
+
+    abstract fun projectDao(): ProjectDao
     abstract fun storyDao(): StoryDao
+
+    abstract fun playtestDao(): PlaytestDao
+
+    abstract fun variableDao(): VariableDao
 
     companion object {
         @Volatile
@@ -22,7 +47,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "arcweaver_database"
-                ).fallbackToDestructiveMigration().build()
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

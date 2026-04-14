@@ -7,11 +7,15 @@ import kotlinx.coroutines.flow.Flow
 
 class StoryRepository(private val storyDao: StoryDao) {
 
-    val allNodes: Flow<List<StoryNodeEntity>> = storyDao.getAllNodes()
 
-    // Fungsi khusus untuk menyimpan Node sekaligus pilihan-pilihannya
+    fun getNodesByProject(projectId: Int): Flow<List<StoryNodeEntity>> {
+        return storyDao.getNodesByProjectId(projectId)
+    }
+
+
     suspend fun insertNodeWithChoices(node: StoryNodeEntity, choices: List<ChoiceEntity>) {
         // 1. Simpan Node dan ambil ID yang di-generate otomatis
+        // Note: 'node' yang dilempar dari ViewModel sudah harus berisi projectId yang valid
         val generatedNodeId = storyDao.insertNode(node).toInt()
 
         // 2. Pasang ID tersebut ke setiap Choice lalu simpan
@@ -39,5 +43,18 @@ class StoryRepository(private val storyDao: StoryDao) {
         }
     }
 
-    suspend fun getFirstNode(): StoryNodeEntity? = storyDao.getFirstNode()
+    suspend fun updateNode(node: StoryNodeEntity) {
+        storyDao.updateNode(node)
+    }
+
+
+    suspend fun getFirstNode(projectId: Int): StoryNodeEntity? {
+        return storyDao.getFirstNodeOfProject(projectId)
+    }
+
+    fun getNodesByProjectIdFlow(projectId: Int): Flow<List<StoryNodeEntity>> {
+        return storyDao.getNodesByProjectIdFlow(projectId)
+    }
+
+
 }

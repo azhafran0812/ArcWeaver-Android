@@ -6,98 +6,87 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.storymaker.arcweaver.viewmodel.NodeViewModel
+import com.storymaker.arcweaver.data.entity.StoryNodeEntity
+import com.storymaker.arcweaver.viewmodel.ProjectDashboardViewModel // Menggunakan ViewModel Dashboard karena logic-nya sama
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NodeListScreen(
-    viewModel: NodeViewModel,
-    onNavigateToEditor: () -> Unit,
-    onNavigateToEditNode: (Int) -> Unit
+    viewModel: ProjectDashboardViewModel, // Gunakan ViewModel yang sudah mendukung projectId
+    projectId: Int,
+    onNavigateToEditor: (Int?) -> Unit,
+    onBack: () -> Unit
 ) {
-    val nodes by viewModel.allNodes.collectAsState()
+    // Mengambil nodes yang sudah terfilter berdasarkan projectId
+    val nodes by viewModel.nodes.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("ArcWeaver Dashboard", style = MaterialTheme.typography.titleLarge) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                title = { Text("Story Nodes List") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToEditor,
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add New Node")
+            FloatingActionButton(onClick = { onNavigateToEditor(null) }) {
+                Icon(Icons.Default.Add, contentDescription = "Add Node")
             }
         }
     ) { paddingValues ->
-
-        // --- ENGLISH EMPTY STATE ---
         if (nodes.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No story nodes yet.\nTap the (+) button to begin!",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
+            Text(
+                text = "Belum ada adegan. Tekan + untuk membuat.",
+                modifier = Modifier.padding(paddingValues).padding(16.dp)
+            )
         } else {
-            // --- STORY LIST ---
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(paddingValues),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(nodes) { node ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth().clickable { onNavigateToEditNode(node.nodeId) },
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Node #${node.nodeId}: ${node.characterName}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "\"${node.dialogueText}\"",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontStyle = FontStyle.Italic,
-                                    maxLines = 2
-                                )
-                            }
-
-                            IconButton(onClick = { viewModel.deleteNode(node) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete Node", tint = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
+                items(nodes, key = { it.nodeId }) { node ->
+                    OldNodeListItem(
+                        node = node,
+                        onClick = { onNavigateToEditor(node.nodeId) }
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun OldNodeListItem(node: StoryNodeEntity, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Node #${node.nodeId} - ${node.characterName}",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = node.dialogueText,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
