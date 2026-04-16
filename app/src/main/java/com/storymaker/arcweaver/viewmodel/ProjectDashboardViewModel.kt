@@ -137,11 +137,44 @@ class ProjectDashboardViewModel(
                         variableRepository.insertVariable(it.copy(varId = 0, projectId = projectId))
                     }
 
-                    // 4. Masukkan Node & Choices Baru dari JSON
+                    // 4. ALGORITMA TWO-PASS UNTUK MENJAHIT ULANG ID (AUTO-ADAPT)
+                    val idMap = mutableMapOf<Int, Int>() // Format: <ID Lama, ID Baru>
+
+                    // TAHAP 1: Buat semua Node baru dan catat perubahan ID-nya
                     importedData.nodes.forEach { nodeData ->
-                        // Hapus ID lama agar AutoGenerate Room tidak bentrok
+                        val oldNodeId = nodeData.node.nodeId
                         val newNode = nodeData.node.copy(nodeId = 0, projectId = projectId)
-                        storyRepository.insertNodeWithChoices(newNode, nodeData.choices)
+
+                        // Insert ke database dan tangkap ID baru hasil AutoGenerate
+                        val newId = storyRepository.insertNodeReturnId(newNode)
+                        idMap[oldNodeId] = newId // Simpan ke dalam kamus pemetaan
+                    }
+
+                    // TAHAP 2: Perbaiki semua sambungan (Target) berdasarkan kamus pemetaan
+                    importedData.nodes.forEach { nodeData ->
+                        val oldNodeId = nodeData.node.nodeId
+                        val newId = idMap[oldNodeId] ?: return@forEach // Lewati jika gagal map
+
+                        // A. Perbaiki nextNodeId (jika cerita berjalan linear tanpa pilihan)
+                        val fixedNextNodeId = nodeData.node.nextNodeId?.let { oldTarget -> idMap[oldTarget] }
+
+                        // Update Node dengan nextNodeId yang sudah benar
+                        val finalNode = storyRepository.getNodeById(newId)?.copy(nextNodeId = fixedNextNodeId)
+                        if (finalNode != null) {
+                            storyRepository.updateNode(finalNode)
+                        }
+
+                        // B. Perbaiki targetNodeId di dalam semua Pilihan (Choices)
+                        val fixedChoices = nodeData.choices.map { choice ->
+                            choice.copy(
+                                choiceId = 0, // Reset ID pilihan
+                                parentNodeId = newId, // Sambungkan ke Node pemilik yang baru
+                                targetNodeId = choice.targetNodeId?.let { oldTarget -> idMap[oldTarget] } // Arahkan ke cabang baru
+                            )
+                        }
+
+                        // Insert pilihan yang sudah diperbaiki ke database
+                        storyRepository.insertChoicesOnly(fixedChoices)
                     }
 
                     projectRepository.syncProjectStats(projectId)

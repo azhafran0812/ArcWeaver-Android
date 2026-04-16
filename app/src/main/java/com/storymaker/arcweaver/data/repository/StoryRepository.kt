@@ -56,5 +56,13 @@ class StoryRepository(private val storyDao: StoryDao) {
         return storyDao.getNodesByProjectIdFlow(projectId)
     }
 
+    suspend fun insertNodeReturnId(node: StoryNodeEntity): Int {
+        return storyDao.insertNodeReturnId(node).toInt()
+    }
+
+    suspend fun insertChoicesOnly(choices: List<ChoiceEntity>) {
+        storyDao.insertChoicesList(choices)
+    }
+
 
 }

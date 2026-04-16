@@ -15,6 +15,12 @@ interface StoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChoice(choice: ChoiceEntity): Long
 
+    @Insert
+    suspend fun insertNodeReturnId(node: StoryNodeEntity): Long
+
+    @Insert
+    suspend fun insertChoicesList(choices: List<ChoiceEntity>)
+
     // --- READ --- >
 
     @Query("SELECT * FROM story_nodes WHERE projectId = :projectId ORDER BY nodeId ASC")
