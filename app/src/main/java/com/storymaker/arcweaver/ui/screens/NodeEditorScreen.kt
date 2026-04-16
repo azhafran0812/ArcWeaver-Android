@@ -50,15 +50,15 @@ fun NodeEditorScreen(
     )
     val projectVariables by varViewModel.getVariables(projectId).collectAsState()
 
-    // --- UNIVERSAL MEDIA PICKER ---
-    // Menyimpan ID string agar sistem tahu kolom mana yang sedang meminta file
+// --- UNIVERSAL MEDIA PICKER ---
     var activeMediaRequest by remember { mutableStateOf<String?>(null) }
 
     val mediaPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument() // <--- UBAH BARIS INI
     ) { uri: Uri? ->
         uri?.let {
             try {
+                // Izin ini sekarang akan berlaku permanen meskipun aplikasi ditutup
                 context.contentResolver.takePersistableUriPermission(
                     it, Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
@@ -162,22 +162,22 @@ fun NodeEditorScreen(
                             MediaInputField(
                                 value = viewModel.characterImageUri, onValueChange = { viewModel.characterImageUri = it },
                                 label = "Character Portrait (Image)", icon = Icons.Default.Face,
-                                onPickRequest = { activeMediaRequest = "character"; mediaPickerLauncher.launch("image/*") }
+                                onPickRequest = { activeMediaRequest = "character"; mediaPickerLauncher.launch(arrayOf("image/*")) } // <--- TAMBAHKAN arrayOf()
                             )
                             MediaInputField(
                                 value = viewModel.bgImageUri, onValueChange = { viewModel.bgImageUri = it },
                                 label = "Custom Background (Image)", icon = Icons.Default.Wallpaper,
-                                onPickRequest = { activeMediaRequest = "bg"; mediaPickerLauncher.launch("image/*") }
+                                onPickRequest = { activeMediaRequest = "bg"; mediaPickerLauncher.launch(arrayOf("image/*")) } // <--- TAMBAHKAN arrayOf()
                             )
                             MediaInputField(
                                 value = viewModel.bgmUri, onValueChange = { viewModel.bgmUri = it },
                                 label = "Background Music (Audio)", icon = Icons.Default.LibraryMusic,
-                                onPickRequest = { activeMediaRequest = "bgm"; mediaPickerLauncher.launch("audio/*") }
+                                onPickRequest = { activeMediaRequest = "bgm"; mediaPickerLauncher.launch(arrayOf("audio/*")) } // <--- TAMBAHKAN arrayOf()
                             )
                             MediaInputField(
                                 value = viewModel.voiceLineUri, onValueChange = { viewModel.voiceLineUri = it },
                                 label = "Character Voice Line (Audio)", icon = Icons.Default.Mic,
-                                onPickRequest = { activeMediaRequest = "node_voice"; mediaPickerLauncher.launch("audio/*") }
+                                onPickRequest = { activeMediaRequest = "node_voice"; mediaPickerLauncher.launch(arrayOf("audio/*")) } // <--- TAMBAHKAN arrayOf()
                             )
                         }
                     }
@@ -314,12 +314,12 @@ fun NodeEditorScreen(
                             MediaInputField(
                                 value = choice.iconUri ?: "", onValueChange = { viewModel.updateChoiceIcon(index, it) },
                                 label = "Custom Choice Icon (Image)", icon = Icons.Default.Image,
-                                onPickRequest = { activeMediaRequest = "choice_icon_$index"; mediaPickerLauncher.launch("image/*") }
+                                onPickRequest = { activeMediaRequest = "choice_icon_$index"; mediaPickerLauncher.launch(arrayOf("image/*")) } // <--- TAMBAHKAN arrayOf()
                             )
                             MediaInputField(
                                 value = choice.voiceLineUri ?: "", onValueChange = { viewModel.updateChoiceVoice(index, it) },
                                 label = "Click Voice/SFX (Audio)", icon = Icons.Default.VolumeUp,
-                                onPickRequest = { activeMediaRequest = "choice_voice_$index"; mediaPickerLauncher.launch("audio/*") }
+                                onPickRequest = { activeMediaRequest = "choice_voice_$index"; mediaPickerLauncher.launch(arrayOf("audio/*")) } // <--- TAMBAHKAN arrayOf()
                             )
                         }
                     }
