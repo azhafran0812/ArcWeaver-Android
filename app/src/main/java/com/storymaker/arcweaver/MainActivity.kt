@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
         val projectRepo = ProjectRepository(database.projectDao())
         val storyRepo = StoryRepository(database.storyDao())
         val variableRepo = com.storymaker.arcweaver.data.repository.VariableRepository(database.variableDao())
+        val playtestRepo = com.storymaker.arcweaver.domain.repository.PlaytestRepository(database.playtestDao(), database.storyDao())
 
         setContent {
             ArcWeaverTheme {
@@ -173,9 +174,12 @@ class MainActivity : ComponentActivity() {
                             arguments = listOf(navArgument("projectId") { type = NavType.IntType })
                         ) { backStackEntry ->
                             val projectId = backStackEntry.arguments?.getInt("projectId") ?: 0
+
+                            // UBAH FACTORY INI UNTUK MEMASUKKAN playtestRepo:
                             val playtestViewModel: PlaytestViewModel = viewModel(
-                                factory = PlaytestViewModelFactory(projectId, storyRepo, variableRepo)
+                                factory = PlaytestViewModelFactory(projectId, storyRepo, variableRepo, playtestRepo)
                             )
+
                             PlaytestScreen(
                                 viewModel = playtestViewModel,
                                 projectId = projectId,

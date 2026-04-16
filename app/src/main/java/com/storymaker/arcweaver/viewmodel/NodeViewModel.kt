@@ -8,20 +8,26 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.storymaker.arcweaver.data.entity.ChoiceEntity
 import com.storymaker.arcweaver.data.entity.StoryNodeEntity
+import com.storymaker.arcweaver.data.repository.ProjectRepository
 import com.storymaker.arcweaver.data.repository.StoryRepository
 import kotlinx.coroutines.launch
-import com.storymaker.arcweaver.data.repository.ProjectRepository
 
 class NodeViewModel(
     private val repository: StoryRepository,
     private val projectRepository: ProjectRepository
 ) : ViewModel() {
 
-    // UI States
+    // UI States (Teks)
     var characterName by mutableStateOf("")
     var dialogueText by mutableStateOf("")
-    var characterImageUri by mutableStateOf("")
     var nextNodeId by mutableStateOf("")
+
+    // UI States (Media)
+    var characterImageUri by mutableStateOf("")
+    var bgImageUri by mutableStateOf("")
+    var bgmUri by mutableStateOf("")
+    var voiceLineUri by mutableStateOf("")
+
     var choicesList by mutableStateOf<List<ChoiceEntity>>(emptyList())
     var isLoading by mutableStateOf(false)
 
@@ -32,22 +38,29 @@ class NodeViewModel(
             if (node != null) {
                 characterName = node.characterName
                 dialogueText = node.dialogueText
-                characterImageUri = node.characterImageUri ?: ""
                 nextNodeId = node.nextNodeId?.toString() ?: ""
+
+                // Load Media
+                characterImageUri = node.characterImageUri ?: ""
+                bgImageUri = node.bgImageUri ?: ""
+                bgmUri = node.bgmUri ?: ""
+                voiceLineUri = node.voiceLineUri ?: ""
+
                 choicesList = repository.getChoicesByNodeId(nodeId)
             }
             isLoading = false
         }
     }
 
-    // Menambah pilihan kosong dengan parameter lengkap (Condition & Effect)
     fun addEmptyChoice() {
         choicesList = choicesList + ChoiceEntity(
             parentNodeId = 0,
             choiceText = "",
             targetNodeId = null,
             requiredCondition = null,
-            effect = null
+            effect = null,
+            iconUri = null,
+            voiceLineUri = null
         )
     }
 
@@ -74,10 +87,22 @@ class NodeViewModel(
         choicesList = currentList
     }
 
-    // BARU: Menyimpan Efek Variabel (Action) saat pilihan ini ditekan
     fun updateChoiceEffect(index: Int, effectAction: String) {
         val currentList = choicesList.toMutableList()
         currentList[index] = currentList[index].copy(effect = effectAction.takeIf { it.isNotBlank() })
+        choicesList = currentList
+    }
+
+    // BARU: Fungsi update ikon dan suara untuk pilihan
+    fun updateChoiceIcon(index: Int, uri: String) {
+        val currentList = choicesList.toMutableList()
+        currentList[index] = currentList[index].copy(iconUri = uri.takeIf { it.isNotBlank() })
+        choicesList = currentList
+    }
+
+    fun updateChoiceVoice(index: Int, uri: String) {
+        val currentList = choicesList.toMutableList()
+        currentList[index] = currentList[index].copy(voiceLineUri = uri.takeIf { it.isNotBlank() })
         choicesList = currentList
     }
 
@@ -88,18 +113,20 @@ class NodeViewModel(
                 projectId = projectId,
                 characterName = characterName,
                 dialogueText = dialogueText,
+                nextNodeId = nextNodeId.toIntOrNull(),
                 characterImageUri = characterImageUri.takeIf { it.isNotBlank() },
-                nextNodeId = nextNodeId.toIntOrNull()
+                bgImageUri = bgImageUri.takeIf { it.isNotBlank() },
+                bgmUri = bgmUri.takeIf { it.isNotBlank() },
+                voiceLineUri = voiceLineUri.takeIf { it.isNotBlank() }
             )
-
 
             if (nodeId == null || nodeId == 0) {
                 repository.insertNodeWithChoices(node, choicesList)
             } else {
                 repository.updateNodeWithChoices(node, choicesList)
             }
-            projectRepository.syncProjectStats(projectId)
 
+            projectRepository.syncProjectStats(projectId)
             onComplete()
         }
     }

@@ -24,7 +24,7 @@ import com.storymaker.arcweaver.data.entity.SaveStateEntity
         PlayerStateEntity::class,
         VariableEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

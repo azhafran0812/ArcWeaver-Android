@@ -5,19 +5,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.storymaker.arcweaver.data.entity.ChoiceEntity
+import com.storymaker.arcweaver.data.entity.PlayerStateEntity
+import com.storymaker.arcweaver.data.entity.SaveStateEntity
 import com.storymaker.arcweaver.data.entity.StoryNodeEntity
 import com.storymaker.arcweaver.data.repository.StoryRepository
 import com.storymaker.arcweaver.data.repository.VariableRepository
+import com.storymaker.arcweaver.domain.repository.PlaytestRepository
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 class PlaytestViewModel(
     private val projectId: Int,
     private val storyRepository: StoryRepository,
-    private val variableRepository: VariableRepository
+    private val variableRepository: VariableRepository,
+    private val playtestRepository: PlaytestRepository
 ) : ViewModel() {
 
-    // Status Cerita
     var currentNode by mutableStateOf<StoryNodeEntity?>(null)
     var currentChoices by mutableStateOf<List<ChoiceEntity>>(emptyList())
     var isLoading by mutableStateOf(true)
@@ -28,8 +33,16 @@ class PlaytestViewModel(
     var nodesVisited by mutableIntStateOf(0)
     var storyPath = mutableStateListOf<String>()
 
+    // Save States
+    var savedGames by mutableStateOf<List<SaveStateEntity>>(emptyList())
+
+    // --- SNACKBAR / UI EVENTS STATE ---
+    private val _uiEvents = MutableSharedFlow<String>()
+    val uiEvents = _uiEvents.asSharedFlow()
+
     init {
         startGame()
+        fetchSaveStates()
     }
 
     fun startGame() {
@@ -40,24 +53,77 @@ class PlaytestViewModel(
             storyPath.clear()
             variablesState.clear()
 
-            // 1. Muat semua variabel default (Initial Value) ke dalam State Simulator
+            // Muat variabel bawaan proyek
             val projectVars = variableRepository.getVariablesByProject(projectId).firstOrNull() ?: emptyList()
-            projectVars.forEach {
-                variablesState[it.name] = it.initialValue
-            }
+            projectVars.forEach { variablesState[it.name] = it.initialValue }
 
-            // 2. Ambil Node Pertama
             val firstNode = storyRepository.getFirstNode(projectId)
-            if (firstNode != null) {
-                moveToNode(firstNode)
-            } else {
-                isStoryEnded = true
+            if (firstNode != null) moveToNode(firstNode) else isStoryEnded = true
+            isLoading = false
+        }
+    }
+
+    // --- FITUR BARU: JUMP, SAVE, LOAD, EDIT VAR ---
+
+    fun jumpToNode(nodeId: Int) {
+        viewModelScope.launch {
+            isLoading = true
+            val node = storyRepository.getNodeById(nodeId)
+            if (node != null) {
+                isStoryEnded = false
+                moveToNode(node)
             }
             isLoading = false
         }
     }
 
-    // Fungsi Transisi Antar Adegan
+    fun updateVariable(key: String, newValue: String) {
+        variablesState[key] = newValue
+    }
+
+    private fun fetchSaveStates() {
+        viewModelScope.launch {
+            savedGames = playtestRepository.getAllSaveFiles()
+        }
+    }
+
+    fun saveProgress(saveName: String) {
+        viewModelScope.launch {
+            // Serialisasi map variabel menjadi format string sederhana (key=value;key=value)
+            val serializedVars = variablesState.entries.joinToString(";") { "${it.key}=${it.value}" }
+
+            val saveState = SaveStateEntity(saveName = saveName)
+            val playerState = PlayerStateEntity(
+                saveId = 0, // Akan di-override oleh Repository
+                currentNodeId = currentNode?.nodeId ?: 0,
+                variablesJson = serializedVars
+            )
+            playtestRepository.saveGameProgress(saveState, playerState)
+            fetchSaveStates() // Refresh list
+        }
+    }
+
+    fun loadProgress(saveId: Int) {
+        viewModelScope.launch {
+            isLoading = true
+            val playerState = playtestRepository.loadPlayerState(saveId)
+            if (playerState != null) {
+                // Deserialisasi variabel
+                variablesState.clear()
+                if (playerState.variablesJson.isNotBlank()) {
+                    playerState.variablesJson.split(";").forEach { pair ->
+                        val parts = pair.split("=")
+                        if (parts.size == 2) variablesState[parts[0]] = parts[1]
+                    }
+                }
+                // Lompat ke Node yang disimpan
+                jumpToNode(playerState.currentNodeId)
+            }
+            isLoading = false
+        }
+    }
+
+    // --- TRANSAKSI NODE & LOGIKA ---
     private suspend fun moveToNode(node: StoryNodeEntity) {
         currentNode = node
         nodesVisited++
@@ -65,27 +131,19 @@ class PlaytestViewModel(
         currentChoices = storyRepository.getChoicesByNodeId(node.nodeId)
     }
 
-    // Eksekusi saat pemain memilih opsi
     fun makeChoice(choice: ChoiceEntity) {
         viewModelScope.launch {
             isLoading = true
-
-            // 1. Terapkan Efek (Action) jika ada
             applyEffect(choice.effect)
-
-            // 2. Pindah ke target node
             val targetId = choice.targetNodeId
             if (targetId != null && targetId != 0) {
                 val nextNode = storyRepository.getNodeById(targetId)
                 if (nextNode != null) moveToNode(nextNode) else isStoryEnded = true
-            } else {
-                isStoryEnded = true
-            }
+            } else isStoryEnded = true
             isLoading = false
         }
     }
 
-    // Lanjut jika cerita Linear (Tidak ada pilihan, menggunakan Next Node ID)
     fun continueLinear() {
         viewModelScope.launch {
             isLoading = true
@@ -93,89 +151,104 @@ class PlaytestViewModel(
             if (targetId != null && targetId != 0) {
                 val nextNode = storyRepository.getNodeById(targetId)
                 if (nextNode != null) moveToNode(nextNode) else isStoryEnded = true
-            } else {
-                isStoryEnded = true
-            }
+            } else isStoryEnded = true
             isLoading = false
         }
     }
 
-    // --- LOGIC ENGINE PARSER ---
+    fun isConditionMet(conditionString: String?): Boolean {
+        if (conditionString.isNullOrBlank()) return true
 
-    // Mengevaluasi apakah pilihan boleh muncul (Condition)
-    fun isConditionMet(condition: String?): Boolean {
-        if (condition.isNullOrBlank()) return true // Jika tidak ada syarat, selalu boleh
+        // Memecah string berdasarkan koma (,) atau &&
+        val conditions = conditionString.split(",", "&&").map { it.trim() }.filter { it.isNotEmpty() }
 
-        return try {
-            val parts = condition.split("==","!=","<=",">=","<",">").map { it.trim() }
-            if (parts.size != 2) return true
+        for (condition in conditions) {
+            val isMet = try {
+                val operator = condition.findAnyOf(listOf("==", "!=", "<=", ">=", "<", ">"))?.second ?: "=="
+                val parts = condition.split(operator).map { it.trim() }
 
-            val varName = parts[0]
-            val targetVal = parts[1]
-            val operator = condition.findAnyOf(listOf("==", "!=", "<=", ">=", "<", ">"))?.second ?: "=="
-            val currentVal = variablesState[varName] ?: ""
+                if (parts.size != 2) true else {
+                    val varName = parts[0]
+                    val targetVal = parts[1]
+                    val currentVal = variablesState[varName] ?: ""
 
-            // Coba perbandingan angka (Integer)
-            val currentInt = currentVal.toInt()
-            val targetInt = targetVal.toInt()
-            when (operator) {
-                "==" -> currentInt == targetInt
-                "!=" -> currentInt != targetInt
-                ">" -> currentInt > targetInt
-                "<" -> currentInt < targetInt
-                ">=" -> currentInt >= targetInt
-                "<=" -> currentInt <= targetInt
-                else -> false
-            }
-        } catch (e: Exception) {
-            // Perbandingan String/Boolean jika bukan angka
-            val operator = condition.findAnyOf(listOf("==", "!="))?.second ?: "=="
-            val varName = condition.split(operator)[0].trim()
-            val targetVal = condition.split(operator)[1].trim()
-            val currentVal = variablesState[varName] ?: "false"
+                    try {
+                        val currentInt = currentVal.toInt()
+                        val targetInt = targetVal.toInt()
+                        when (operator) {
+                            "==" -> currentInt == targetInt
+                            "!=" -> currentInt != targetInt
+                            ">" -> currentInt > targetInt
+                            "<" -> currentInt < targetInt
+                            ">=" -> currentInt >= targetInt
+                            "<=" -> currentInt <= targetInt
+                            else -> false
+                        }
+                    } catch (e: NumberFormatException) {
+                        // Jika bukan angka (Boolean / String)
+                        when (operator) {
+                            "==" -> currentVal.equals(targetVal, ignoreCase = true)
+                            "!=" -> !currentVal.equals(targetVal, ignoreCase = true)
+                            else -> false
+                        }
+                    }
+                }
+            } catch (e: Exception) { true }
 
-            when (operator) {
-                "==" -> currentVal.equals(targetVal, ignoreCase = true)
-                "!=" -> !currentVal.equals(targetVal, ignoreCase = true)
-                else -> false
-            }
+            // Logika AND: Jika ada SATU saja syarat yang tidak terpenuhi, batalkan semua.
+            if (!isMet) return false
         }
+
+        // Jika lolos semua pemeriksaan di atas, berarti semua syarat terpenuhi
+        return true
     }
 
-    // Mengeksekusi perubahan nilai variabel (Action)
-    private fun applyEffect(effect: String?) {
-        if (effect.isNullOrBlank()) return
+    private fun applyEffect(effectString: String?) {
+        if (effectString.isNullOrBlank()) return
 
-        try {
-            val parts = effect.split("=", "+", "-").map { it.trim() }
-            if (parts.size != 2) return
+        // Memecah string berdasarkan koma (,) atau &&
+        val effects = effectString.split(",", "&&").map { it.trim() }.filter { it.isNotEmpty() }
 
-            val varName = parts[0]
-            val valPart = parts[1]
-            val operator = effect.findAnyOf(listOf("=", "+", "-"))?.second ?: "="
-            val currentVal = variablesState[varName] ?: "0"
+        for (effect in effects) {
+            try {
+                val operator = effect.findAnyOf(listOf("=", "+", "-"))?.second ?: "="
+                val parts = effect.split(operator).map { it.trim() }
 
-            if (operator == "=") {
-                variablesState[varName] = valPart // Set nilai langsung
-            } else {
-                // Matematika pertambahan/pengurangan
-                val currentInt = currentVal.toIntOrNull() ?: 0
-                val deltaInt = valPart.toIntOrNull() ?: 0
-                variablesState[varName] = if (operator == "+") (currentInt + deltaInt).toString() else (currentInt - deltaInt).toString()
-            }
-        } catch (e: Exception) { e.printStackTrace() }
+                if (parts.size != 2) continue
+
+                val varName = parts[0]
+                val valPart = parts[1]
+                val currentVal = variablesState[varName] ?: "0"
+
+                if (operator == "=") {
+                    variablesState[varName] = valPart // Set nilai mutlak
+                } else {
+                    val currentInt = currentVal.toIntOrNull() ?: 0
+                    val deltaInt = valPart.toIntOrNull() ?: 0
+                    // Tambah atau kurang
+                    variablesState[varName] = if (operator == "+") (currentInt + deltaInt).toString() else (currentInt - deltaInt).toString()
+                }
+
+                // --- TRIGGER SNACKBAR NOTIFICATION DI SINI ---
+                viewModelScope.launch {
+                    _uiEvents.emit("📈 $varName updated to ${variablesState[varName]}")
+                }
+
+            } catch (e: Exception) { e.printStackTrace() }
+        }
     }
 }
 
 class PlaytestViewModelFactory(
     private val projectId: Int,
     private val storyRepository: StoryRepository,
-    private val variableRepository: VariableRepository
+    private val variableRepository: VariableRepository,
+    private val playtestRepository: PlaytestRepository
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PlaytestViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return PlaytestViewModel(projectId, storyRepository, variableRepository) as T
+            return PlaytestViewModel(projectId, storyRepository, variableRepository, playtestRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

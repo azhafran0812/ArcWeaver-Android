@@ -11,5 +11,7 @@ data class ChoiceEntity(
     val targetNodeId: Int? = null,
     val requiredCondition: String? = null,
     val condition: String? = null,
-    val effect: String? = null
+    val effect: String? = null,
+    val iconUri: String? = null,
+    val voiceLineUri: String? = null
 )

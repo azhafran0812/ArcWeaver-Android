@@ -1,5 +1,8 @@
 package com.storymaker.arcweaver.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -42,16 +45,20 @@ fun ProjectDashboardScreen(
     val context = LocalContext.current
     val database = AppDatabase.getDatabase(context)
 
+    // Melewatkan variableRepository ke Dashboard ViewModel agar ia bisa mengimpor/mengekspor variabel juga
+    val variableRepo = VariableRepository(database.variableDao())
+
     val viewModel: ProjectDashboardViewModel = viewModel(
         factory = ProjectDashboardViewModelFactory(
             projectId = projectId,
             projectRepository = ProjectRepository(database.projectDao()),
-            storyRepository = StoryRepository(database.storyDao())
+            storyRepository = StoryRepository(database.storyDao()),
+            variableRepository = variableRepo // <--- Ini akan error merah sebentar, kita perbaiki di Langkah 3
         )
     )
 
     val varViewModel: VariableViewModel = viewModel(
-        factory = VariableViewModelFactory(VariableRepository(database.variableDao()))
+        factory = VariableViewModelFactory(variableRepo)
     )
 
     val project by viewModel.project.collectAsState()
@@ -65,6 +72,19 @@ fun ProjectDashboardScreen(
     // Dialog States
     var showAddVarDialog by remember { mutableStateOf(false) }
     var variableToEdit by remember { mutableStateOf<VariableEntity?>(null) }
+
+    // --- LAUNCHER EXPORT & IMPORT JSON ---
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri?.let { viewModel.exportProjectToJson(context, it, variables) }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.importProjectFromJson(context, it) }
+    }
 
     Scaffold(
         topBar = {
@@ -194,7 +214,6 @@ fun ProjectDashboardScreen(
                     }
                 }
                 2 -> { // TAB 3: SETTINGS
-                    // Mengambil nilai awal dari database saat tab dibuka
                     var editTitle by remember(project) { mutableStateOf(project?.title ?: "") }
                     var editDesc by remember(project) { mutableStateOf(project?.description ?: "") }
 
@@ -220,7 +239,6 @@ fun ProjectDashboardScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Tombol Save
                         Button(
                             onClick = { viewModel.updateProjectDetails(editTitle, editDesc) },
                             modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -231,9 +249,38 @@ fun ProjectDashboardScreen(
                             Text("Save Changes", fontWeight = FontWeight.Bold)
                         }
 
+                        // --- EXPORT / IMPORT SECTION ---
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                        Text("Backup & Share", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    // Membuat default nama file: "Judul_Proyek_Backup.json"
+                                    val safeTitle = project?.title?.replace(" ", "_") ?: "ArcWeaver"
+                                    exportLauncher.launch("${safeTitle}_Backup.json")
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Export JSON")
+                            }
+
+                            OutlinedButton(
+                                onClick = { importLauncher.launch(arrayOf("application/json")) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Import JSON")
+                            }
+                        }
+
                         Spacer(modifier = Modifier.weight(1f))
 
-                        // Tombol Hapus Proyek
                         Button(
                             onClick = { viewModel.deleteCurrentProject { onBack() } },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -272,8 +319,7 @@ fun ProjectDashboardScreen(
     }
 }
 
-// --- COMPONENTS ---
-
+// [KOMPONEN ModernNodeCard, AddVariableDialog, EditVariableDialog] ...
 @Composable
 fun ModernNodeCard(node: StoryNodeEntity, onClick: () -> Unit, onDelete: () -> Unit) {
     Card(

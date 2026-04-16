@@ -23,5 +23,8 @@ data class StoryNodeEntity(
     val characterImageUri: String? = null,
     val nextNodeId: Int? = null,
     val canvasX: Float = 0f,
-    val canvasY: Float = 0f
+    val canvasY: Float = 0f,
+    val bgImageUri: String? = null,
+    val bgmUri: String? = null,
+    val voiceLineUri: String? = null
 )

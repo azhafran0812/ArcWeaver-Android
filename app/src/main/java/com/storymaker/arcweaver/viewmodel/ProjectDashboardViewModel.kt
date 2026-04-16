@@ -7,6 +7,13 @@ import com.storymaker.arcweaver.data.entity.ProjectEntity
 import com.storymaker.arcweaver.data.entity.StoryNodeEntity
 import com.storymaker.arcweaver.data.repository.ProjectRepository
 import com.storymaker.arcweaver.data.repository.StoryRepository
+import com.storymaker.arcweaver.data.entity.ChoiceEntity
+import com.storymaker.arcweaver.data.entity.VariableEntity
+import android.content.Context
+import android.net.Uri
+import com.google.gson.Gson
+import com.storymaker.arcweaver.data.repository.VariableRepository
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -14,10 +21,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+
 class ProjectDashboardViewModel(
     private val projectId: Int,
     private val projectRepository: ProjectRepository,
-    private val storyRepository: StoryRepository
+    private val storyRepository: StoryRepository,
+    private val variableRepository: VariableRepository
 ) : ViewModel() {
 
     // Menyimpan detail proyek saat ini
@@ -72,19 +81,102 @@ class ProjectDashboardViewModel(
             }
         }
     }
+
+    // --- LOGIKA EKSPOR JSON ---
+    fun exportProjectToJson(context: Context, uri: Uri, variables: List<VariableEntity>) {
+        viewModelScope.launch {
+            try {
+                val currentProject = project.value ?: return@launch
+                val allNodes = nodes.value
+
+                // Merangkai Nodes dan Choices menjadi satu kesatuan
+                val nodeExportList = allNodes.map { node ->
+                    val choices = storyRepository.getChoicesByNodeId(node.nodeId)
+                    NodeExportData(node, choices)
+                }
+
+                // Menyatukan Semuanya
+                val exportData = ArcWeaverExportData(currentProject, variables, nodeExportList)
+
+                val gson = Gson()
+                val jsonString = gson.toJson(exportData)
+
+                // Menyimpan ke file lokal HP
+                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    outputStream.write(jsonString.toByteArray())
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // --- LOGIKA IMPOR JSON (MENGGANTI PROYEK INI) ---
+    fun importProjectFromJson(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            try {
+                // Membaca file JSON
+                val jsonString = context.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
+                if (jsonString != null) {
+                    val gson = Gson()
+                    val importedData = gson.fromJson(jsonString, ArcWeaverExportData::class.java)
+
+                    // 1. Perbarui Judul & Deskripsi Proyek
+                    val updatedProject = importedData.project.copy(projectId = projectId)
+                    projectRepository.updateProject(updatedProject)
+
+                    // 2. Bersihkan Node dan Variable Lama
+                    val oldNodes = storyRepository.getNodesByProjectIdFlow(projectId).first()
+                    oldNodes.forEach { storyRepository.deleteNode(it) }
+
+                    val oldVars = variableRepository.getVariablesByProject(projectId).first()
+                    oldVars.forEach { variableRepository.deleteVariable(it) }
+
+                    // 3. Masukkan Variable Baru dari JSON
+                    importedData.variables.forEach {
+                        variableRepository.insertVariable(it.copy(varId = 0, projectId = projectId))
+                    }
+
+                    // 4. Masukkan Node & Choices Baru dari JSON
+                    importedData.nodes.forEach { nodeData ->
+                        // Hapus ID lama agar AutoGenerate Room tidak bentrok
+                        val newNode = nodeData.node.copy(nodeId = 0, projectId = projectId)
+                        storyRepository.insertNodeWithChoices(newNode, nodeData.choices)
+                    }
+
+                    projectRepository.syncProjectStats(projectId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 }
 
-// Factory untuk mengirimkan repository dan projectId ke ViewModel
+// Factory
 class ProjectDashboardViewModelFactory(
     private val projectId: Int,
     private val projectRepository: ProjectRepository,
-    private val storyRepository: StoryRepository
+    private val storyRepository: StoryRepository,
+    private val variableRepository: VariableRepository
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ProjectDashboardViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ProjectDashboardViewModel(projectId, projectRepository, storyRepository) as T
+            return ProjectDashboardViewModel(projectId, projectRepository, storyRepository, variableRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+
+// Data Class Wrapper untuk JSON
+data class ArcWeaverExportData(
+    val project: com.storymaker.arcweaver.data.entity.ProjectEntity,
+    val variables: List<VariableEntity>,
+    val nodes: List<NodeExportData>
+)
+
+data class NodeExportData(
+    val node: com.storymaker.arcweaver.data.entity.StoryNodeEntity,
+    val choices: List<ChoiceEntity>
+)

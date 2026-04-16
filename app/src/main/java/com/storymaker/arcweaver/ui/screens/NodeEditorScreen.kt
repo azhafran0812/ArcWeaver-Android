@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -43,15 +44,17 @@ fun NodeEditorScreen(
 ) {
     val context = LocalContext.current
 
-    // Inisialisasi VariableViewModel untuk mengambil daftar variabel proyek
     val database = AppDatabase.getDatabase(context)
     val varViewModel: VariableViewModel = viewModel(
         factory = VariableViewModelFactory(VariableRepository(database.variableDao()))
     )
     val projectVariables by varViewModel.getVariables(projectId).collectAsState()
 
-    // Launcher untuk mengambil gambar dari storage lokal HP
-    val imagePickerLauncher = rememberLauncherForActivityResult(
+    // --- UNIVERSAL MEDIA PICKER ---
+    // Menyimpan ID string agar sistem tahu kolom mana yang sedang meminta file
+    var activeMediaRequest by remember { mutableStateOf<String?>(null) }
+
+    val mediaPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
@@ -60,7 +63,24 @@ fun NodeEditorScreen(
                     it, Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             } catch (e: Exception) { e.printStackTrace() }
-            viewModel.characterImageUri = it.toString()
+
+            // Mendistribusikan URI file ke kolom yang tepat berdasarkan ID Request
+            val req = activeMediaRequest ?: return@let
+            when {
+                req == "character" -> viewModel.characterImageUri = it.toString()
+                req == "bg" -> viewModel.bgImageUri = it.toString()
+                req == "bgm" -> viewModel.bgmUri = it.toString()
+                req == "node_voice" -> viewModel.voiceLineUri = it.toString()
+                req.startsWith("choice_icon_") -> {
+                    val index = req.removePrefix("choice_icon_").toIntOrNull()
+                    if (index != null) viewModel.updateChoiceIcon(index, it.toString())
+                }
+                req.startsWith("choice_voice_") -> {
+                    val index = req.removePrefix("choice_voice_").toIntOrNull()
+                    if (index != null) viewModel.updateChoiceVoice(index, it.toString())
+                }
+            }
+            activeMediaRequest = null
         }
     }
 
@@ -132,16 +152,32 @@ fun NodeEditorScreen(
                                 }
                             }
 
+                            // --- AREA MEDIA ADEGAN ---
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Scene Media & Audio (Optional)", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedTextField(
+
+                            MediaInputField(
                                 value = viewModel.characterImageUri, onValueChange = { viewModel.characterImageUri = it },
-                                label = { Text("Image URI / Path") }, leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
-                                trailingIcon = {
-                                    IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
-                                        Icon(Icons.Default.FolderOpen, contentDescription = "Pick Local Image", tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp)
+                                label = "Character Portrait (Image)", icon = Icons.Default.Face,
+                                onPickRequest = { activeMediaRequest = "character"; mediaPickerLauncher.launch("image/*") }
+                            )
+                            MediaInputField(
+                                value = viewModel.bgImageUri, onValueChange = { viewModel.bgImageUri = it },
+                                label = "Custom Background (Image)", icon = Icons.Default.Wallpaper,
+                                onPickRequest = { activeMediaRequest = "bg"; mediaPickerLauncher.launch("image/*") }
+                            )
+                            MediaInputField(
+                                value = viewModel.bgmUri, onValueChange = { viewModel.bgmUri = it },
+                                label = "Background Music (Audio)", icon = Icons.Default.LibraryMusic,
+                                onPickRequest = { activeMediaRequest = "bgm"; mediaPickerLauncher.launch("audio/*") }
+                            )
+                            MediaInputField(
+                                value = viewModel.voiceLineUri, onValueChange = { viewModel.voiceLineUri = it },
+                                label = "Character Voice Line (Audio)", icon = Icons.Default.Mic,
+                                onPickRequest = { activeMediaRequest = "node_voice"; mediaPickerLauncher.launch("audio/*") }
                             )
                         }
                     }
@@ -161,7 +197,6 @@ fun NodeEditorScreen(
                     }
                 }
 
-                // --- KONDISI JIKA TIDAK ADA PILIHAN (LINEAR STORY) ---
                 if (viewModel.choicesList.isEmpty()) {
                     item {
                         Card(
@@ -185,7 +220,7 @@ fun NodeEditorScreen(
                     }
                 }
 
-                // --- KARTU CHOICES DENGAN DROPDOWN VARIABEL ---
+                // --- KARTU CHOICES ---
                 itemsIndexed(viewModel.choicesList) { index, choice ->
                     var showConditionMenu by remember { mutableStateOf(false) }
                     var showActionMenu by remember { mutableStateOf(false) }
@@ -219,11 +254,13 @@ fun NodeEditorScreen(
                             )
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Kolom Condition (Dengan Dropdown Menu)
+                            // Kolom Condition (Multi-Condition Support)
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
                                     value = choice.requiredCondition ?: "", onValueChange = { viewModel.updateChoiceCondition(index, it) },
-                                    label = { Text("Condition (IF)") }, leadingIcon = { Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp)) },
+                                    label = { Text("Condition (IF)") },
+                                    placeholder = { Text("e.g. gold >= 50, level >= 3") },
+                                    leadingIcon = { Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp)) },
                                     trailingIcon = { IconButton(onClick = { showConditionMenu = true }) { Icon(Icons.Default.List, null) } },
                                     modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp)
                                 )
@@ -232,8 +269,9 @@ fun NodeEditorScreen(
                                         DropdownMenuItem(
                                             text = { Text(variable.name) },
                                             onClick = {
-                                                val existing = choice.requiredCondition ?: ""
-                                                viewModel.updateChoiceCondition(index, "$existing ${variable.name} == ")
+                                                val existing = choice.requiredCondition?.trim() ?: ""
+                                                val prefix = if (existing.isNotEmpty() && !existing.endsWith(",")) "$existing, " else existing
+                                                viewModel.updateChoiceCondition(index, "$prefix${variable.name} == ")
                                                 showConditionMenu = false
                                             }
                                         )
@@ -242,34 +280,78 @@ fun NodeEditorScreen(
                             }
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Kolom Action (Dengan Dropdown Menu)
+                            // Kolom Action (Multi-Action Support)
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
                                     value = choice.effect ?: "", onValueChange = { viewModel.updateChoiceEffect(index, it) },
-                                    label = { Text("Variable Action (EFFECT)") }, leadingIcon = { Icon(Icons.Default.Bolt, null, modifier = Modifier.size(16.dp)) },
+                                    label = { Text("Action (EFFECT)") },
+                                    placeholder = { Text("e.g. gold - 50, hasKey = true") },
+                                    leadingIcon = { Icon(Icons.Default.Bolt, null, modifier = Modifier.size(16.dp)) },
                                     trailingIcon = { IconButton(onClick = { showActionMenu = true }) { Icon(Icons.Default.List, null) } },
-                                    modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text("e.g. gold + 10") }
+                                    modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp)
                                 )
                                 DropdownMenu(expanded = showActionMenu, onDismissRequest = { showActionMenu = false }) {
                                     projectVariables.forEach { variable ->
                                         DropdownMenuItem(
                                             text = { Text(variable.name) },
                                             onClick = {
-                                                val existing = choice.effect ?: ""
+                                                val existing = choice.effect?.trim() ?: ""
+                                                val prefix = if (existing.isNotEmpty() && !existing.endsWith(",")) "$existing, " else existing
                                                 val operator = if (variable.type == "Boolean") "= true" else "+ 1"
-                                                viewModel.updateChoiceEffect(index, "$existing ${variable.name} $operator")
+                                                viewModel.updateChoiceEffect(index, "$prefix${variable.name} $operator")
                                                 showActionMenu = false
                                             }
                                         )
                                     }
                                 }
                             }
+
+                            // --- AREA MEDIA PILIHAN ---
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(thickness = 0.5.dp)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            MediaInputField(
+                                value = choice.iconUri ?: "", onValueChange = { viewModel.updateChoiceIcon(index, it) },
+                                label = "Custom Choice Icon (Image)", icon = Icons.Default.Image,
+                                onPickRequest = { activeMediaRequest = "choice_icon_$index"; mediaPickerLauncher.launch("image/*") }
+                            )
+                            MediaInputField(
+                                value = choice.voiceLineUri ?: "", onValueChange = { viewModel.updateChoiceVoice(index, it) },
+                                label = "Click Voice/SFX (Audio)", icon = Icons.Default.VolumeUp,
+                                onPickRequest = { activeMediaRequest = "choice_voice_$index"; mediaPickerLauncher.launch("audio/*") }
+                            )
                         }
                     }
                 }
             }
         }
     }
+}
+
+// --- KOMPONEN HELPER UNTUK KOLOM INPUT MEDIA ---
+@Composable
+fun MediaInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onPickRequest: () -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp)) },
+        trailingIcon = {
+            IconButton(onClick = onPickRequest) {
+                Icon(Icons.Default.FolderOpen, contentDescription = "Pick File", tint = MaterialTheme.colorScheme.primary)
+            }
+        },
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp)
+    )
 }
 
 // Helper: Basic Markdown Parser for Live Preview

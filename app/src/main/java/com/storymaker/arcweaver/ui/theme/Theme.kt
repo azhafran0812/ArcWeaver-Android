@@ -1,6 +1,7 @@
 package com.storymaker.arcweaver.ui.theme
 
 import android.app.Activity
+import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -55,8 +56,8 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun ArcWeaverTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color dimatikan (false) agar tema "Warm" kita tidak ditimpa oleh wallpaper HP user (Material You)
+    darkTheme: Boolean = LocalContext.current.getSharedPreferences("arcweaver_prefs", Context.MODE_PRIVATE)
+        .getBoolean("dark_mode", isSystemInDarkTheme()),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
