@@ -9,13 +9,13 @@ Built with modern Android development standards, ArcWeaver utilizes a robust **C
 ## 📸 Screenshots
 
 <p align="center">
-  <img src="screenshots/home_screen_1.png" width="22%" />
-  <img src="screenshots/home_screen_2.png" width="22%" />
-  <img src="screenshots/node_editor_1.png" width="22%" />
-  <img src="screenshots/node_editor_2.png" width="22%" />
-  <img src="screenshots/visual_map.png" width="22%" />
-  <img src="screenshots/playtest.png" width="22%" />
-  <img src="screenshots/tutorial.png" width="22%" />
+  <img src="screenshots/home_screen_1.jpeg" width="22%" />
+  <img src="screenshots/home_screen_2.jpeg" width="22%" />
+  <img src="screenshots/node_editor_1.jpeg" width="22%" />
+  <img src="screenshots/node_editor_2.jpeg" width="22%" />
+  <img src="screenshots/visual_map.jpeg" width="22%" />
+  <img src="screenshots/playtest.jpeg" width="22%" />
+  <img src="screenshots/tutorial.jpeg" width="22%" />
 </p>
 
 ---
