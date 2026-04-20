@@ -56,13 +56,14 @@ This project is built strictly following **Clean Architecture** principles and t
 
 ## 📂 Project Structure (Layered Clean Architecture)
 
+```text
 com.storymaker.arcweaver
 ├── data/           # Repositories (Single Source of Truth), Room DAOs, Entities
 ├── domain/         # Core Business Logic (PlaytestEngine, Evaluator, Parser)
 ├── model/          # Pure Data Classes
 ├── ui/             # Jetpack Compose Screens, Theme, Components
 └── viewmodel/      # Presentation Layer handling UI State and User Intents
-
+```
 ---
 
 ## 💻 Getting Started (Installation)
@@ -75,14 +76,14 @@ To build and run this project locally:
 Open in Android Studio:
 Open the cloned directory in Android Studio (Koala or newer recommended).
 
-Sync Gradle:
+2. **Sync Gradle:**
 Allow the IDE to sync the build.gradle.kts dependencies.
 
-Run:
+3. **Run:**
 Deploy to an Android Emulator or a physical device running Android 8.0 (API 26) or higher.
 
-✒️ Author
-Abyan Zhafran - Software Engineering Student / Android Developer
-Aditya Ardian Syah - Software Engineering Student / Android Developer
+## ✒️ Author
+* **Abyan Zhafran - Software Engineering Student / Android Developer**
+* **Aditya Ardian Syah - Software Engineering Student / Android Developer**
 
 If you have any questions or feedback regarding the project's architecture, feel free to reach out!
