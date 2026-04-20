@@ -63,7 +63,7 @@ fun PlaytestScreen(
 
     // --- PERSISTENT MEDIA STATE (BGM & Background) ---
     var activeBgmUri by remember { mutableStateOf<String?>(null) }
-    var activeBgUri by remember { mutableStateOf<String?>(null) } // Memori Background
+    var activeBgUri by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(viewModel.currentNode) {
         // Cek BGM
@@ -75,7 +75,7 @@ fun PlaytestScreen(
         if (!nodeBg.isNullOrBlank() && nodeBg != activeBgUri) activeBgUri = nodeBg
     }
 
-    // Memutar Musik BGM (Berulang)
+    // Memutar Musik BGM
     DisposableEffect(activeBgmUri) {
         var bgmPlayer: android.media.MediaPlayer? = null
         if (!activeBgmUri.isNullOrBlank()) {
@@ -91,9 +91,8 @@ fun PlaytestScreen(
         }
     }
 
-    // (DisposableEffect untuk voiceLineUri tetap sama...)
 
-    // Memutar Suara Dialog Karakter (Sekali)
+    // Memutar Suara Dialog Karakter
     DisposableEffect(viewModel.currentNode?.voiceLineUri) {
         var voicePlayer: MediaPlayer? = null
         val uriStr = viewModel.currentNode?.voiceLineUri
@@ -155,11 +154,10 @@ fun PlaytestScreen(
                 viewModel.currentNode != null -> {
                     Box(modifier = Modifier.fillMaxSize()) {
 
-                        // --- LAYER 1: BACKGROUND (Animasi Crossfade Lembut) ---
-                        // Layer ini diam di tempat dan hanya berubah jika activeBgUri mendapat gambar baru
+                        // --- LAYER 1: BACKGROUND
                         Crossfade(
                             targetState = activeBgUri,
-                            animationSpec = tween(800), // Fade transition selama 0.8 detik
+                            animationSpec = tween(800),
                             label = "bg_crossfade"
                         ) { bg ->
                             if (!bg.isNullOrBlank()) {
@@ -169,12 +167,12 @@ fun PlaytestScreen(
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )
-                                // Lapisan tipis agar teks selalu terbaca
+
                                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.1f)))
                             }
                         }
 
-                        // --- LAYER 2: KONTEN TEKS & PILIHAN (Animasi Slide) ---
+                        // --- LAYER 2: KONTEN TEKS & PILIHAN
                         AnimatedContent(
                             targetState = viewModel.currentNode,
                             transitionSpec = {
@@ -442,12 +440,12 @@ fun PlaytestScreen(
     }
 }
 
-// Fungsi Helper untuk memutar suara klik (Fire & Forget)
+// Fungsi Helper untuk memutar suara
 fun playChoiceSFX(context: Context, uriStr: String?) {
     if (uriStr.isNullOrBlank()) return
     try {
         val player = MediaPlayer.create(context, Uri.parse(uriStr))
-        player.setOnCompletionListener { it.release() } // Menghapus memori otomatis setelah selesai berbunyi
+        player.setOnCompletionListener { it.release() }
         player.start()
     } catch (e: Exception) { e.printStackTrace() }
 }

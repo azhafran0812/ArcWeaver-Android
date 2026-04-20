@@ -33,7 +33,6 @@ class ProjectDashboardViewModel(
     private val _project = MutableStateFlow<ProjectEntity?>(null)
     val project: StateFlow<ProjectEntity?> = _project.asStateFlow()
 
-    // Mengambil HANYA daftar node yang sesuai dengan projectId
     val nodes: StateFlow<List<StoryNodeEntity>> = storyRepository.getNodesByProject(projectId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -50,7 +49,7 @@ class ProjectDashboardViewModel(
     fun updateProjectDetails(title: String, description: String) {
         viewModelScope.launch {
             project.value?.let { currentProject ->
-                // Memperbarui entitas dengan judul, deskripsi, dan waktu terbaru
+
                 val updatedProject = currentProject.copy(
                     title = title,
                     description = description,
@@ -68,7 +67,7 @@ class ProjectDashboardViewModel(
     fun deleteNode(node: StoryNodeEntity) {
         viewModelScope.launch {
             storyRepository.deleteNode(node)
-            // Sinkronisasi ulang karena ada node yang hilang
+
             projectRepository.syncProjectStats(node.projectId)
         }
     }
@@ -89,19 +88,16 @@ class ProjectDashboardViewModel(
                 val currentProject = project.value ?: return@launch
                 val allNodes = nodes.value
 
-                // Merangkai Nodes dan Choices menjadi satu kesatuan
                 val nodeExportList = allNodes.map { node ->
                     val choices = storyRepository.getChoicesByNodeId(node.nodeId)
                     NodeExportData(node, choices)
                 }
 
-                // Menyatukan Semuanya
                 val exportData = ArcWeaverExportData(currentProject, variables, nodeExportList)
 
                 val gson = Gson()
                 val jsonString = gson.toJson(exportData)
 
-                // Menyimpan ke file lokal HP
                 context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                     outputStream.write(jsonString.toByteArray())
                 }
@@ -111,7 +107,7 @@ class ProjectDashboardViewModel(
         }
     }
 
-    // --- LOGIKA IMPOR JSON (MENGGANTI PROYEK INI) ---
+    // --- LOGIKA IMPOR JSON ---
     fun importProjectFromJson(context: Context, uri: Uri) {
         viewModelScope.launch {
             try {
@@ -121,59 +117,48 @@ class ProjectDashboardViewModel(
                     val gson = Gson()
                     val importedData = gson.fromJson(jsonString, ArcWeaverExportData::class.java)
 
-                    // 1. Perbarui Judul & Deskripsi Proyek
                     val updatedProject = importedData.project.copy(projectId = projectId)
                     projectRepository.updateProject(updatedProject)
 
-                    // 2. Bersihkan Node dan Variable Lama
                     val oldNodes = storyRepository.getNodesByProjectIdFlow(projectId).first()
                     oldNodes.forEach { storyRepository.deleteNode(it) }
 
                     val oldVars = variableRepository.getVariablesByProject(projectId).first()
                     oldVars.forEach { variableRepository.deleteVariable(it) }
 
-                    // 3. Masukkan Variable Baru dari JSON
                     importedData.variables.forEach {
                         variableRepository.insertVariable(it.copy(varId = 0, projectId = projectId))
                     }
 
-                    // 4. ALGORITMA TWO-PASS UNTUK MENJAHIT ULANG ID (AUTO-ADAPT)
-                    val idMap = mutableMapOf<Int, Int>() // Format: <ID Lama, ID Baru>
+                    val idMap = mutableMapOf<Int, Int>()
 
-                    // TAHAP 1: Buat semua Node baru dan catat perubahan ID-nya
                     importedData.nodes.forEach { nodeData ->
                         val oldNodeId = nodeData.node.nodeId
                         val newNode = nodeData.node.copy(nodeId = 0, projectId = projectId)
 
-                        // Insert ke database dan tangkap ID baru hasil AutoGenerate
                         val newId = storyRepository.insertNodeReturnId(newNode)
-                        idMap[oldNodeId] = newId // Simpan ke dalam kamus pemetaan
+                        idMap[oldNodeId] = newId
                     }
 
-                    // TAHAP 2: Perbaiki semua sambungan (Target) berdasarkan kamus pemetaan
                     importedData.nodes.forEach { nodeData ->
                         val oldNodeId = nodeData.node.nodeId
-                        val newId = idMap[oldNodeId] ?: return@forEach // Lewati jika gagal map
+                        val newId = idMap[oldNodeId] ?: return@forEach
 
-                        // A. Perbaiki nextNodeId (jika cerita berjalan linear tanpa pilihan)
                         val fixedNextNodeId = nodeData.node.nextNodeId?.let { oldTarget -> idMap[oldTarget] }
 
-                        // Update Node dengan nextNodeId yang sudah benar
                         val finalNode = storyRepository.getNodeById(newId)?.copy(nextNodeId = fixedNextNodeId)
                         if (finalNode != null) {
                             storyRepository.updateNode(finalNode)
                         }
 
-                        // B. Perbaiki targetNodeId di dalam semua Pilihan (Choices)
                         val fixedChoices = nodeData.choices.map { choice ->
                             choice.copy(
-                                choiceId = 0, // Reset ID pilihan
-                                parentNodeId = newId, // Sambungkan ke Node pemilik yang baru
-                                targetNodeId = choice.targetNodeId?.let { oldTarget -> idMap[oldTarget] } // Arahkan ke cabang baru
+                                choiceId = 0,
+                                parentNodeId = newId,
+                                targetNodeId = choice.targetNodeId?.let { oldTarget -> idMap[oldTarget] }
                             )
                         }
 
-                        // Insert pilihan yang sudah diperbaiki ke database
                         storyRepository.insertChoicesOnly(fixedChoices)
                     }
 

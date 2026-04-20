@@ -50,7 +50,6 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
 
-                // Menentukan layar mana saja yang akan menampilkan Bottom Navigation Bar
                 val showBottomBar = currentDestination?.route in listOf(
                     BottomNavItem.Home.route,
                     BottomNavItem.Projects.route,
@@ -73,7 +72,7 @@ class MainActivity : ComponentActivity() {
                                         selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
                                         onClick = {
                                             navController.navigate(item.route) {
-                                                // Menghindari penumpukan antrean navigasi
+
                                                 popUpTo(navController.graph.findStartDestination().id) {
                                                     saveState = true
                                                 }
@@ -175,7 +174,6 @@ class MainActivity : ComponentActivity() {
                         ) { backStackEntry ->
                             val projectId = backStackEntry.arguments?.getInt("projectId") ?: 0
 
-                            // UBAH FACTORY INI UNTUK MEMASUKKAN playtestRepo:
                             val playtestViewModel: PlaytestViewModel = viewModel(
                                 factory = PlaytestViewModelFactory(projectId, storyRepo, variableRepo, playtestRepo)
                             )
@@ -197,7 +195,7 @@ class MainActivity : ComponentActivity() {
                                 projectId = projectId,
                                 onNavigateToEditor = { nodeId ->
                                     navController.navigate("editor/$projectId/${nodeId ?: 0}")
-                                }, // <--- TAMBAHKAN BARIS INI
+                                },
                                 onBack = { navController.popBackStack() }
                             )
                         }

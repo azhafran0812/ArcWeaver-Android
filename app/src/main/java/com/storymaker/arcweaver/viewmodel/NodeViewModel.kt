@@ -93,7 +93,6 @@ class NodeViewModel(
         choicesList = currentList
     }
 
-    // BARU: Fungsi update ikon dan suara untuk pilihan
     fun updateChoiceIcon(index: Int, uri: String) {
         val currentList = choicesList.toMutableList()
         currentList[index] = currentList[index].copy(iconUri = uri.takeIf { it.isNotBlank() })

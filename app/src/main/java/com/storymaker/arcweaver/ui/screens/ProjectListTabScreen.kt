@@ -20,7 +20,7 @@ fun ProjectListTabScreen(
     viewModel: HomeViewModel,
     onProjectClick: (Int) -> Unit
 ) {
-    // Membaca state daftar seluruh proyek dari ViewModel
+
     val projects by viewModel.projectList.collectAsState()
 
     Scaffold(
@@ -59,7 +59,6 @@ fun ProjectListTabScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(projects, key = { it.projectId }) { project ->
-                    // Kita mendaur ulang komponen ProjectCard yang sudah dibuat di HomeScreen.kt
                     ProjectCard(
                         project = project,
                         onClick = { onProjectClick(project.projectId) }

@@ -66,7 +66,6 @@ fun SettingsScreen(
                 checked = isDarkMode,
                 onCheckedChange = { checked ->
                     isDarkMode = checked
-                    // Simpan preferensi ke penyimpanan lokal HP
                     sharedPreferences.edit().putBoolean("dark_mode", checked).apply()
                 }
             )

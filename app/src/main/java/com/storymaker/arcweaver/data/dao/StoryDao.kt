@@ -26,7 +26,7 @@ interface StoryDao {
     @Query("SELECT * FROM story_nodes WHERE projectId = :projectId ORDER BY nodeId ASC")
     fun getNodesByProjectId(projectId: Int): Flow<List<StoryNodeEntity>>
 
-    // FUNGSI INI YANG DIBUTUHKAN VISUAL MAP (Reactive Flow)
+    // FUNGSI Reactive Flow
     @Query("SELECT * FROM story_nodes WHERE projectId = :projectId")
     fun getNodesByProjectIdFlow(projectId: Int): Flow<List<StoryNodeEntity>>
 
@@ -60,14 +60,13 @@ interface StoryDao {
     @Query("DELETE FROM choices WHERE parentNodeId = :nodeId")
     suspend fun deleteChoicesByNodeId(nodeId: Int)
     // --- TRANSAKSI GABUNGAN (NODE + CHOICES) ---
-    // Transaction memastikan jika salah satu gagal, semuanya dibatalkan (mencegah data korup)
 
     @Transaction
     suspend fun insertNodeWithChoices(node: StoryNodeEntity, choices: List<ChoiceEntity>) {
-        // 1. Simpan Node dulu untuk mendapatkan ID yang di-generate otomatis
+        // 1. Simpan Node
         val generatedNodeId = insertNode(node).toInt()
 
-        // 2. Pasang ID Node tersebut ke setiap Choice, lalu simpan
+        // 2. Pasang ID Node
         if (choices.isNotEmpty()) {
             val choicesWithParentId = choices.map { it.copy(parentNodeId = generatedNodeId) }
             insertChoices(choicesWithParentId)
@@ -79,7 +78,7 @@ interface StoryDao {
         // 1. Update data Node
         updateNode(node)
 
-        // 2. Hapus semua Choice lama yang menempel pada Node ini
+        // 2. Hapus semua Choice lama yang menempel pada Node
         deleteChoicesByNodeId(node.nodeId)
 
         // 3. Masukkan daftar Choice yang baru/diperbarui

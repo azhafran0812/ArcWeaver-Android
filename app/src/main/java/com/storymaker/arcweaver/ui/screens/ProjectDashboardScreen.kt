@@ -45,7 +45,6 @@ fun ProjectDashboardScreen(
     val context = LocalContext.current
     val database = AppDatabase.getDatabase(context)
 
-    // Melewatkan variableRepository ke Dashboard ViewModel agar ia bisa mengimpor/mengekspor variabel juga
     val variableRepo = VariableRepository(database.variableDao())
 
     val viewModel: ProjectDashboardViewModel = viewModel(
@@ -53,7 +52,7 @@ fun ProjectDashboardScreen(
             projectId = projectId,
             projectRepository = ProjectRepository(database.projectDao()),
             storyRepository = StoryRepository(database.storyDao()),
-            variableRepository = variableRepo // <--- Ini akan error merah sebentar, kita perbaiki di Langkah 3
+            variableRepository = variableRepo
         )
     )
 
@@ -256,7 +255,7 @@ fun ProjectDashboardScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedButton(
                                 onClick = {
-                                    // Membuat default nama file: "Judul_Proyek_Backup.json"
+
                                     val safeTitle = project?.title?.replace(" ", "_") ?: "ArcWeaver"
                                     exportLauncher.launch("${safeTitle}_Backup.json")
                                 },

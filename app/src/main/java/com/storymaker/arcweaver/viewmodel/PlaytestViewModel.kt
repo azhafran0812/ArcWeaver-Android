@@ -63,7 +63,6 @@ class PlaytestViewModel(
         }
     }
 
-    // --- FITUR BARU: JUMP, SAVE, LOAD, EDIT VAR ---
 
     fun jumpToNode(nodeId: Int) {
         viewModelScope.launch {
@@ -89,7 +88,7 @@ class PlaytestViewModel(
 
     fun saveProgress(saveName: String) {
         viewModelScope.launch {
-            // Serialisasi map variabel menjadi format string sederhana (key=value;key=value)
+
             val serializedVars = variablesState.entries.joinToString(";") { "${it.key}=${it.value}" }
 
             val saveState = SaveStateEntity(saveName = saveName)
@@ -195,18 +194,16 @@ class PlaytestViewModel(
                 }
             } catch (e: Exception) { true }
 
-            // Logika AND: Jika ada SATU saja syarat yang tidak terpenuhi, batalkan semua.
+            // Logika AND
             if (!isMet) return false
         }
 
-        // Jika lolos semua pemeriksaan di atas, berarti semua syarat terpenuhi
         return true
     }
 
     private fun applyEffect(effectString: String?) {
         if (effectString.isNullOrBlank()) return
 
-        // Memecah string berdasarkan koma (,) atau &&
         val effects = effectString.split(",", "&&").map { it.trim() }.filter { it.isNotEmpty() }
 
         for (effect in effects) {

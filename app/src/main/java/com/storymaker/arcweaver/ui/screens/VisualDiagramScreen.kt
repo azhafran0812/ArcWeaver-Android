@@ -104,7 +104,7 @@ fun VisualDiagramScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(Color(0xFFF5F5F5)) // Warna latar grid
-                // Deteksi Pan & Zoom pada latar belakang (Bukan pada Node)
+                // Deteksi Pan & Zoom pada latar belakang
                 .pointerInput(Unit) {
                     detectTransformGestures { _, panChange, zoomChange, _ ->
                         cameraZoom = (cameraZoom * zoomChange).coerceIn(0.3f, 2f)
@@ -230,7 +230,7 @@ fun DraggableNodeCard(
     cameraPan: Offset,
     onPositionChanged: (Float, Float) -> Unit
 ) {
-    // State lokal agar saat node digeser, UI update seketika tanpa menunggu sinkronisasi database
+
     var offsetX by remember(node.canvasX) { mutableFloatStateOf(node.canvasX) }
     var offsetY by remember(node.canvasY) { mutableFloatStateOf(node.canvasY) }
 
@@ -254,7 +254,7 @@ fun DraggableNodeCard(
                     }
                 ) { change, dragAmount ->
                     change.consume()
-                    // Membalikkan nilai drag dengan faktor zoom agar kecepatan geser akurat
+                    // Membalikkan nilai drag dengan faktor zoom
                     offsetX += dragAmount.x / cameraZoom
                     offsetY += dragAmount.y / cameraZoom
                 }

@@ -27,19 +27,12 @@ class VisualMapViewModel(
     private fun loadVisualMap() {
         viewModelScope.launch {
             isLoading = true
-            // Mengambil node pertama sebagai patokan (atau kita bisa ambil semua langsung)
+
             val firstNode = storyRepository.getFirstNode(projectId)
 
-            // Karena DAO Anda mungkin mengembalikan Flow di layar lain, di sini kita
-            // asumsikan ada cara untuk mengambil semua node. Jika menggunakan Flow, collect di sini.
-            // Untuk kesederhanaan simulasi, kita kumpulkan manual dari repositori:
-
-            // [!] PERHATIAN: Pastikan Anda memiliki fungsi getNodesByProjectId (suspend/Flow) di DAO.
-            // Di sini saya mengandalkan flow yang sudah ada di aplikasi Anda.
             storyRepository.getNodesByProjectIdFlow(projectId).collect { nodeList ->
                 nodes = nodeList
 
-                // Ambil semua choices untuk menggambar garis
                 val allChoices = mutableListOf<ChoiceEntity>()
                 for (node in nodeList) {
                     val nodeChoices = storyRepository.getChoicesByNodeId(node.nodeId)
@@ -51,15 +44,12 @@ class VisualMapViewModel(
         }
     }
 
-    // Dipanggil setiap kali user selesai men-drag (menyeret) node di kanvas
     fun updateNodePosition(node: StoryNodeEntity, newX: Float, newY: Float) {
         viewModelScope.launch {
             val updatedNode = node.copy(canvasX = newX, canvasY = newY)
 
-            // Update UI State langsung agar terasa mulus
             nodes = nodes.map { if (it.nodeId == node.nodeId) updatedNode else it }
 
-            // Simpan ke database di latar belakang
             storyRepository.updateNode(updatedNode)
         }
     }

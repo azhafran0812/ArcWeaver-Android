@@ -27,7 +27,6 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onProjectClick: (Int) -> Unit
 ) {
-    // Memantau daftar proyek dari ViewModel
     val projects by viewModel.projectList.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var showDialog by remember { mutableStateOf(false) }
@@ -38,7 +37,7 @@ fun HomeScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // 1. Search Bar (Desain Warm & Melengkung)
+        // 1. Search Bar
         item {
             OutlinedTextField(
                 value = searchQuery,
@@ -110,7 +109,7 @@ fun HomeScreen(
             }
         }
 
-        // 4. Grid Projects (Dilengkapi Logika Search yang Diperbaiki)
+        // 4. Grid Projects
         item {
             // Logika Filter: Mencari berdasarkan judul atau deskripsi
             val filteredProjects = projects.filter {
@@ -118,8 +117,6 @@ fun HomeScreen(
                         it.description.contains(searchQuery, ignoreCase = true)
             }
 
-            // Jika tidak sedang mencari, tampilkan 4 terbaru saja.
-            // Jika sedang mencari, tampilkan semua yang cocok.
             val itemsToDisplay = if (searchQuery.isNotBlank()) filteredProjects else filteredProjects.take(4)
 
             if (itemsToDisplay.isEmpty()) {
@@ -131,7 +128,7 @@ fun HomeScreen(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Membuat grid manual dengan chunked(2)
+
                     itemsToDisplay.chunked(2).forEach { rowProjects ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             rowProjects.forEach { project ->
@@ -141,7 +138,7 @@ fun HomeScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                             }
-                            // Filler jika hanya ada 1 item di baris terakhir agar ukuran tetap konsisten
+
                             if (rowProjects.size == 1) {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
@@ -164,7 +161,7 @@ fun HomeScreen(
     }
 }
 
-// --- KOMPONEN PROJECT CARD (DIPERBAIKI) ---
+// --- KOMPONEN PROJECT CARD ---
 @Composable
 fun ProjectCard(
     project: ProjectEntity,
@@ -174,7 +171,7 @@ fun ProjectCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(1f) // Membuat proporsi card selalu persegi
+            .aspectRatio(1f)
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),

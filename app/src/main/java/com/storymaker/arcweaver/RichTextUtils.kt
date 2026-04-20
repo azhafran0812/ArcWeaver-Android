@@ -15,7 +15,6 @@ fun parseRichText(text: String): AnnotatedString {
         val matches = regex.findAll(text)
 
         for (match in matches) {
-            // Tambahkan teks normal sebelum format
             append(text.substring(currentIndex, match.range.first))
 
             val boldText = match.groups[1]?.value
@@ -32,7 +31,6 @@ fun parseRichText(text: String): AnnotatedString {
             }
             currentIndex = match.range.last + 1
         }
-        // Tambahkan sisa teks
         append(text.substring(currentIndex))
     }
 }

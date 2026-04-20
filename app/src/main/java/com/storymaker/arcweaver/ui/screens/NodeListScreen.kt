@@ -21,12 +21,12 @@ import com.storymaker.arcweaver.viewmodel.ProjectDashboardViewModel // Menggunak
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NodeListScreen(
-    viewModel: ProjectDashboardViewModel, // Gunakan ViewModel yang sudah mendukung projectId
+    viewModel: ProjectDashboardViewModel,
     projectId: Int,
     onNavigateToEditor: (Int?) -> Unit,
     onBack: () -> Unit
 ) {
-    // Mengambil nodes yang sudah terfilter berdasarkan projectId
+
     val nodes by viewModel.nodes.collectAsState()
 
     Scaffold(

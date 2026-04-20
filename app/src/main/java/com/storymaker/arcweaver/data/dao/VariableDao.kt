@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface VariableDao {
-    // Mengambil semua variabel milik sebuah proyek, diurutkan sesuai abjad
+    // Mengambil semua variabel, diurutkan sesuai abjad
     @Query("SELECT * FROM variables WHERE projectId = :projectId ORDER BY name ASC")
     fun getVariablesByProject(projectId: Int): Flow<List<VariableEntity>>
 
